@@ -25,29 +25,29 @@ function NavBar({ onLogout }) {
   const linkStyle = ({ isActive }) => ({
     textDecoration: 'none',
     fontWeight: 500,
-    fontSize: '0.875rem',
-    padding: '6px 14px',
-    borderRadius: '6px',
-    color: isActive ? '#1e3a5f' : '#475569',
-    background: isActive ? '#eef1fe' : 'transparent',
-    border: isActive ? '1px solid #c7d2fe' : '1px solid transparent',
-    transition: 'all 0.12s',
+    fontSize: '0.9rem',
+    padding: '8px 16px',
+    borderRadius: '4px',
+    color: isActive ? 'var(--navy)' : 'var(--text-secondary)',
+    background: isActive ? 'var(--bg-subtle)' : 'transparent',
+    border: isActive ? '1px solid var(--border)' : '1px solid transparent',
+    transition: 'all 0.2s ease',
   });
 
   return (
     <header style={{
-      background: '#ffffff',
-      borderBottom: '1px solid #e2e8f0',
-      boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+      background: 'var(--bg-card)',
+      borderBottom: '1px solid var(--border)',
+      boxShadow: 'var(--shadow-sm)',
       position: 'sticky', top: 0, zIndex: 50,
     }}>
       <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '0 1.5rem', height: '58px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
         {/* Logo */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
-          <div style={{ width: '32px', height: '32px', background: 'linear-gradient(135deg, #1e3a5f, #4f6ef7)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1rem' }}>🚨</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
+          <div style={{ width: '36px', height: '36px', background: 'linear-gradient(135deg, var(--navy), var(--primary))', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem' }}>🚨</div>
           <div>
-            <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e3a5f', lineHeight: 1.1 }}>DFR System</div>
-            <div style={{ fontSize: '0.65rem', color: '#94a3b8', letterSpacing: '0.04em', textTransform: 'uppercase' }}>Family Reunification</div>
+            <div style={{ fontWeight: 500, fontSize: '1.05rem', color: 'var(--navy)', lineHeight: 1.2 }}>DFR System</div>
+            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Family Reunification</div>
           </div>
         </div>
 
@@ -59,9 +59,9 @@ function NavBar({ onLogout }) {
         </nav>
 
         {/* User */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
           <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: '0.82rem', fontWeight: 600, color: '#0f172a' }}>{username}</div>
+            <div style={{ fontSize: '0.85rem', fontWeight: 500, color: 'var(--text)' }}>{username}</div>
             <div style={{ marginTop: '1px' }}>
               <span className={`badge ${ROLE_COLOR[role] || 'badge-neutral'}`}>{ROLE_LABEL[role] || role}</span>
             </div>
@@ -107,13 +107,13 @@ function AppRoutes() {
       <Route path="/login" element={authed ? <Navigate to="/found" replace /> : <Login onLogin={handleLogin} />} />
 
       <Route path="/found" element={
-        <RequireAuth>
+        <RequireAuth allowedRoles={['rescuer', 'police', 'admin']}>
           <Shell onLogout={handleLogout}><AddFoundPerson /></Shell>
         </RequireAuth>
       } />
 
       <Route path="/missing" element={
-        <RequireAuth>
+        <RequireAuth allowedRoles={['public', 'police', 'admin']}>
           <Shell onLogout={handleLogout}><MissingPersonForm /></Shell>
         </RequireAuth>
       } />
@@ -124,7 +124,10 @@ function AppRoutes() {
         </RequireAuth>
       } />
 
-      <Route path="*" element={<Navigate to={authed ? '/found' : '/login'} replace />} />
+      <Route path="*" element={
+        !authed ? <Navigate to="/login" replace /> :
+        <Navigate to={getRole() === 'public' ? '/missing' : getRole() === 'police' || getRole() === 'admin' ? '/matches' : '/found'} replace />
+      } />
     </Routes>
   );
 }

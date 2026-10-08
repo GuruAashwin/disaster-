@@ -276,8 +276,20 @@ def list_matches(
         found_person = db.query(Person).filter(Person.id == m.found_id).first()
         missing_person = db.query(Person).filter(Person.id == m.missing_id).first()
         item = MatchResponse.model_validate(m)
-        item.found_name = (found_person.raw_fields or {}).get("name", "Unknown") if found_person else "Unknown"
-        item.missing_name = (missing_person.raw_fields or {}).get("name", "Unknown") if missing_person else "Unknown"
+        if found_person:
+            item.found_name = (found_person.raw_fields or {}).get("name", "Unknown")
+            item.found_person = found_person.raw_fields
+        else:
+            item.found_name = "Unknown"
+            item.found_person = {}
+            
+        if missing_person:
+            item.missing_name = (missing_person.raw_fields or {}).get("name", "Unknown")
+            item.missing_person = missing_person.raw_fields
+        else:
+            item.missing_name = "Unknown"
+            item.missing_person = {}
+            
         results.append(item)
 
     return results

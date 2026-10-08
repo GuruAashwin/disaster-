@@ -30,7 +30,7 @@ function MatchCard({ match, onVerify, onReject, busy }) {
           <span style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 500 }}>{match.model_version}</span>
         </div>
         <button onClick={() => setExpanded(!expanded)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.75rem', color: '#4f6ef7', fontWeight: 600, padding: '2px 6px' }}>
-          {expanded ? '▲ Less' : '▼ Features'}
+          {expanded ? '▲ Less' : '▼ Details'}
         </button>
       </div>
 
@@ -54,19 +54,40 @@ function MatchCard({ match, onVerify, onReject, busy }) {
         </div>
       )}
 
-      {/* Feature table */}
-      {expanded && Object.keys(features).length > 0 && (
-        <div style={{ margin: '0 16px 12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '12px' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
-            <tbody>
-              {Object.entries(features).map(([k, v]) => (
-                <tr key={k} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                  <td style={{ padding: '4px 12px 4px 0', color: '#64748b', fontWeight: 600 }}>{k}</td>
-                  <td style={{ padding: '4px 0', textAlign: 'right', color: '#334155', fontWeight: 500 }}>{typeof v === 'number' ? v.toFixed(3) : String(v)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {/* Individual Information */}
+      {expanded && (
+        <div style={{ margin: '0 16px 12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '16px', display: 'flex', gap: '20px' }}>
+          
+          <div style={{ flex: 1 }}>
+            <h4 style={{ margin: '0 0 12px 0', fontSize: '0.8rem', color: '#059669', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Found Person Details</h4>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+              <tbody>
+                {match.found_person && Object.entries(match.found_person).filter(([k,v]) => v && k !== 'name').map(([k, v]) => (
+                  <tr key={k} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    <td style={{ padding: '6px 12px 6px 0', color: '#64748b', fontWeight: 600, textTransform: 'capitalize', width: '35%' }}>{k.replace('_', ' ')}</td>
+                    <td style={{ padding: '6px 0', color: '#334155' }}>{Array.isArray(v) ? v.join(', ') : String(v)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div style={{ width: '1px', background: '#e2e8f0' }}></div>
+
+          <div style={{ flex: 1 }}>
+            <h4 style={{ margin: '0 0 12px 0', fontSize: '0.8rem', color: '#d97706', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Missing Person Details</h4>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+              <tbody>
+                {match.missing_person && Object.entries(match.missing_person).filter(([k,v]) => v && k !== 'name').map(([k, v]) => (
+                  <tr key={k} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    <td style={{ padding: '6px 12px 6px 0', color: '#64748b', fontWeight: 600, textTransform: 'capitalize', width: '35%' }}>{k.replace('_', ' ')}</td>
+                    <td style={{ padding: '6px 0', color: '#334155' }}>{Array.isArray(v) ? v.join(', ') : String(v)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
         </div>
       )}
 

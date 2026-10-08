@@ -86,6 +86,8 @@ class MatchResponse(BaseModel):
     # denormalised convenience fields (populated by the router)
     found_name: Optional[str] = None
     missing_name: Optional[str] = None
+    found_person: Optional[Dict[str, Any]] = None
+    missing_person: Optional[Dict[str, Any]] = None
 
     model_config = {"from_attributes": True}
 
