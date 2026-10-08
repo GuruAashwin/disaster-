@@ -1,23 +1,61 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { submitMissingPerson } from '../api';
 import { db } from '../db';
 import { PersonsTable } from './PersonsTable';
+
+// Flush all pending missing-person records from IndexedDB to the backend.
+// Mirrors the same pattern used in AddFoundPerson.
+async function flushOfflineQueue() {
+  const pending = await db.offlineQueue.where('status').equals('pending').toArray();
+  for (const item of pending) {
+    // Only flush records that belong to this form
+    if (item.data?._type !== 'missing') continue;
+    try {
+      const payload = { ...item.data };
+      delete payload._type;
+      await submitMissingPerson(payload);
+      await db.offlineQueue.update(item.id, { status: 'synced' });
+    } catch (err) {
+      console.warn('Sync failed', item.record_id, err.message);
+    }
+  }
+}
 
 export function MissingPersonForm() {
   const [form, setForm]     = useState({ name: '', age: '', gender: 'Unknown', location: '', descriptors: '' });
   const [submitting, setSubmitting] = useState(false);
   const [isOffline, setIsOffline]   = useState(!navigator.onLine);
+  const [isSyncing, setIsSyncing]   = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
   const [result, setResult]         = useState(null);
   const [error, setError]           = useState('');
   const [refresh, setRefresh]       = useState(0);
 
-  useEffect(() => {
-    const on  = () => setIsOffline(false);
-    const off = () => setIsOffline(true);
-    window.addEventListener('online',  on);
-    window.addEventListener('offline', off);
-    return () => { window.removeEventListener('online', on); window.removeEventListener('offline', off); };
+  const refreshPending = useCallback(async () => {
+    // Count only this form's pending records
+    const all = await db.offlineQueue.where('status').equals('pending').toArray();
+    setPendingCount(all.filter(r => r.data?._type === 'missing').length);
   }, []);
+
+  const handleOnline = useCallback(async () => {
+    setIsOffline(false);
+    setIsSyncing(true);
+    await flushOfflineQueue();
+    await refreshPending();
+    setIsSyncing(false);
+    setRefresh(t => t + 1);
+  }, [refreshPending]);
+
+  useEffect(() => {
+    refreshPending();
+    const off = () => setIsOffline(true);
+    window.addEventListener('online',  handleOnline);
+    window.addEventListener('offline', off);
+    return () => {
+      window.removeEventListener('online',  handleOnline);
+      window.removeEventListener('offline', off);
+    };
+  }, [handleOnline, refreshPending]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -26,6 +64,7 @@ export function MissingPersonForm() {
     try {
       if (isOffline) {
         await db.offlineQueue.add({ record_id: crypto.randomUUID(), data: { ...payload, _type: 'missing' }, status: 'pending', timestamp: Date.now() });
+        await refreshPending();
         setResult('Saved offline — will sync when connected.');
       } else {
         const res = await submitMissingPerson(payload);
@@ -40,6 +79,9 @@ export function MissingPersonForm() {
     }
   };
 
+  const syncStatus = isSyncing ? 'sync-syncing' : isOffline ? 'sync-offline' : 'sync-online';
+  const syncLabel  = isSyncing ? 'Syncing…'    : isOffline ? 'Offline'      : 'Online';
+
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: '20px', alignItems: 'start' }}>
 
@@ -53,8 +95,9 @@ export function MissingPersonForm() {
             <h2>File a Missing Person Report</h2>
             <p style={{ color: '#94a3b8', fontSize: '0.8rem', marginTop: '3px' }}>Provide details to help locate your family member</p>
           </div>
-          <div className={`sync-badge ${isOffline ? 'sync-offline' : 'sync-online'}`}>
-            <div className="sync-dot" />{isOffline ? 'Offline' : 'Online'}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {pendingCount > 0 && <span className="badge badge-warning">{pendingCount} pending</span>}
+            <div className={`sync-badge ${syncStatus}`}><div className="sync-dot" />{syncLabel}</div>
           </div>
         </div>
 

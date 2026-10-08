@@ -28,6 +28,11 @@ ml/models/
 # ── Docker volumes / local data ───────────────────────────────────────────────
 postgres_data/
 
+# ── SQLite dev database (created automatically, not for version control) ──────
+*.db
+*.sqlite
+*.sqlite3
+
 # ── OS / editor ───────────────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db

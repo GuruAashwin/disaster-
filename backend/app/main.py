@@ -15,11 +15,14 @@ app = FastAPI(
     description="Match found persons to missing person reports after a disaster.",
 )
 
-# Allow LAN access for field devices; restrict origins in production
+# Allow any origin on the LAN.
+# allow_credentials is False because auth uses Bearer tokens (Authorization header),
+# not cookies — so the browser never sends credentials automatically.
+# This also makes the wildcard origin legal per the CORS spec.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
