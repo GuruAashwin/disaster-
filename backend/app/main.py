@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.database import engine, Base
 from app.routers import auth, matches
 from app.routers.persons import router as persons_router
+from app.routers import videos
 from app.models import User
 from app.auth import get_current_user
 
@@ -30,6 +31,7 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(matches.router)
 app.include_router(persons_router)
+app.include_router(videos.router)
 
 
 @app.get("/health")

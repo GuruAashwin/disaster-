@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { db } from '../db';
 import { submitFoundPerson } from '../api';
 import { PersonsTable } from './PersonsTable';
+import { ImageUploadZone } from './ImageUploadZone';
 
 async function flushOfflineQueue() {
   const pending = await db.offlineQueue.where('status').equals('pending').toArray();
@@ -19,6 +20,7 @@ async function flushOfflineQueue() {
 
 export function AddFoundPerson() {
   const [form, setForm]       = useState({ name: '', age: '', gender: 'Unknown', location: '', condition: '' });
+  const [imageFile, setImageFile] = useState(null);
   const [submitting, setSubmitting]   = useState(false);
   const [isOffline, setIsOffline]     = useState(!navigator.onLine);
   const [isSyncing, setIsSyncing]     = useState(false);
@@ -53,15 +55,22 @@ export function AddFoundPerson() {
     const payload = { name: form.name, age_raw: form.age, gender: form.gender, location: form.location, condition: form.condition };
     try {
       if (isOffline) {
+        // For offline, we can't store the image in IndexedDB efficiently
+        if (imageFile) {
+          setError('Cannot upload images while offline. Please try again when online.');
+          setSubmitting(false);
+          return;
+        }
         await db.offlineQueue.add({ record_id: crypto.randomUUID(), data: { ...payload, _type: 'found' }, status: 'pending', timestamp: Date.now() });
         await refreshPending();
         setResult('Saved offline — will sync when connected.');
       } else {
-        const res = await submitFoundPerson(payload);
+        const res = await submitFoundPerson(payload, imageFile);
         setResult(`Record submitted successfully (ID: ${res.id.slice(0, 8)}…)`);
         setRefresh(t => t + 1);
       }
       setForm({ name: '', age: '', gender: 'Unknown', location: '', condition: '' });
+      setImageFile(null);
     } catch (err) {
       setError(err.message || 'Submission failed.');
     } finally {
@@ -73,7 +82,7 @@ export function AddFoundPerson() {
   const syncLabel  = isSyncing ? 'Syncing…' : isOffline ? 'Offline' : 'Online';
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: '20px', alignItems: 'start' }}>
+    <div className="grid-2col" style={{ alignItems: 'start' }}>
 
       {/* Left — history */}
       <PersonsTable type="found" title="Found Persons Log" accentColor="#059669" refreshTrigger={refresh} />
@@ -123,6 +132,8 @@ export function AddFoundPerson() {
             <label className="input-label">Medical Condition</label>
             <input className="form-input" name="condition" value={form.condition} onChange={e => setForm({...form, condition: e.target.value})} placeholder="e.g. stable, minor injuries, unconscious" />
           </div>
+
+          <ImageUploadZone onImageSelected={setImageFile} maxSizeMB={5} />
 
           <button type="submit" className="btn btn-primary" disabled={submitting} style={{ marginTop: '0.5rem' }}>
             {submitting ? 'Submitting…' : 'Submit Record'}

@@ -2,9 +2,9 @@ import { useState } from 'react';
 import { login } from '../api';
 
 const DEMO_ACCOUNTS = [
-  { label: 'Rescuer',       sub: 'Field rescue team',   username: 'rescuer1',    password: 'password', icon: '🦺', color: '#4f6ef7' },
+  { label: 'Rescuer',       sub: 'Field rescue team',   username: 'rescuer1',    password: 'password', icon: '🦺', color: '#0d9488' },
   { label: 'Police Admin',  sub: 'Match verification',  username: 'police_admin',password: 'password', icon: '🚔', color: '#1e3a5f' },
-  { label: 'Family Member', sub: 'Report missing person',username:'family_user', password: 'password', icon: '👨‍👩‍👦', color: '#d97706' },
+  { label: 'Family Member', sub: 'Report missing person',username:'family_user', password: 'password', icon: '👨‍👩‍👦', color: '#ea580c' },
 ];
 
 export function Login({ onLogin }) {
@@ -30,18 +30,47 @@ export function Login({ onLogin }) {
   const anyLoading = loading || loadingDemo !== null;
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f4f6f9', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem 1rem' }}>
+    <div style={{ 
+      minHeight: '100vh', 
+      background: 'linear-gradient(135deg, var(--navy), var(--navy-light))',
+      display: 'flex', 
+      alignItems: 'center', 
+      justifyContent: 'center', 
+      padding: '1rem',
+      flexDirection: 'column',
+      gap: '2rem',
+    }}>
       <div style={{ width: '100%', maxWidth: '420px' }}>
 
         {/* Header */}
         <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-          <div style={{ width: '56px', height: '56px', background: 'linear-gradient(135deg, #1e3a5f, #4f6ef7)', borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem', margin: '0 auto 1rem' }}>🚨</div>
-          <h1 style={{ fontSize: '1.5rem', color: '#1e3a5f', marginBottom: '4px' }}>DFR System</h1>
-          <p style={{ color: '#94a3b8', fontSize: '0.875rem' }}>Disaster Family Reunification Platform</p>
+          <div style={{ 
+            width: '60px', 
+            height: '60px', 
+            background: 'linear-gradient(135deg, var(--teal), var(--teal-light))', 
+            borderRadius: '12px', 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center', 
+            fontSize: '1.8rem', 
+            margin: '0 auto 1rem',
+            boxShadow: 'var(--shadow-md)',
+          }}>
+            🚨
+          </div>
+          <h1 style={{ fontSize: 'clamp(1.3rem, 5vw, 1.6rem)', color: 'white', marginBottom: '0.5rem', fontWeight: 700 }}>
+            DFR System
+          </h1>
+          <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 'clamp(0.85rem, 3vw, 1rem)', fontWeight: 500 }}>
+            Disaster Family Reunification
+          </p>
         </div>
 
-        <div className="card fade-in">
-          <h2 style={{ marginBottom: '1.25rem', fontSize: '1.05rem' }}>Sign in to your account</h2>
+        {/* Card */}
+        <div className="card fade-in" style={{ width: '100%', minHeight: 'auto', padding: 'clamp(1.25rem, 4vw, 2rem)' }}>
+          <h2 style={{ marginBottom: '1.5rem', fontSize: 'clamp(1.05rem, 3vw, 1.25rem)' }}>
+            Sign in to your account
+          </h2>
 
           {error && (
             <div className="alert alert-error">
@@ -50,33 +79,68 @@ export function Login({ onLogin }) {
           )}
 
           {/* Demo quick-login */}
-          <p style={{ fontSize: '0.72rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '8px' }}>Quick Access — Demo Accounts</p>
+          <p style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '1rem' }}>
+            Quick Access — Demo Accounts
+          </p>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '7px', marginBottom: '1.25rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1.5rem' }}>
             {DEMO_ACCOUNTS.map((acc, i) => (
               <button
                 key={acc.username}
                 onClick={() => doLogin(acc.username, acc.password, i)}
                 disabled={anyLoading}
                 style={{
-                  display: 'flex', alignItems: 'center', gap: '12px',
-                  padding: '10px 14px', borderRadius: '8px', cursor: anyLoading ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  padding: '12px 14px',
+                  borderRadius: '8px',
+                  cursor: anyLoading ? 'not-allowed' : 'pointer',
                   background: loadingDemo === i ? '#f8fafc' : '#ffffff',
-                  border: `1.5px solid ${loadingDemo === i ? acc.color : '#e2e8f0'}`,
+                  border: `1.5px solid ${loadingDemo === i ? acc.color : 'var(--border)'}`,
                   opacity: anyLoading && loadingDemo !== i ? 0.55 : 1,
-                  transition: 'all 0.12s', textAlign: 'left', width: '100%',
+                  transition: 'all 0.2s ease',
+                  textAlign: 'left',
+                  width: '100%',
+                  minHeight: '56px',
+                  boxShadow: 'var(--shadow-xs)',
                 }}
-                onMouseEnter={e => { if (!anyLoading) { e.currentTarget.style.borderColor = acc.color; e.currentTarget.style.background = '#f8fafc'; }}}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = loadingDemo === i ? acc.color : '#e2e8f0'; e.currentTarget.style.background = '#ffffff'; }}
+                onMouseEnter={e => { 
+                  if (!anyLoading) { 
+                    e.currentTarget.style.borderColor = acc.color;
+                    e.currentTarget.style.background = '#f8fafc';
+                    e.currentTarget.style.boxShadow = 'var(--shadow-sm)';
+                  }
+                }}
+                onMouseLeave={e => { 
+                  e.currentTarget.style.borderColor = loadingDemo === i ? acc.color : 'var(--border)';
+                  e.currentTarget.style.background = '#ffffff';
+                  e.currentTarget.style.boxShadow = 'var(--shadow-xs)';
+                }}
               >
-                <div style={{ width: '34px', height: '34px', borderRadius: '8px', background: `${acc.color}18`, border: `1px solid ${acc.color}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1rem', flexShrink: 0 }}>
+                <div style={{ 
+                  width: '40px', 
+                  height: '40px', 
+                  borderRadius: '8px', 
+                  background: `${acc.color}18`, 
+                  border: `1px solid ${acc.color}30`, 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center', 
+                  fontSize: '1.2rem', 
+                  flexShrink: 0,
+                }}>
                   {acc.icon}
                 </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 600, fontSize: '0.875rem', color: '#0f172a' }}>{acc.label}</div>
-                  <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>{acc.sub}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--navy)', marginBottom: '2px' }}>
+                    {acc.label}
+                  </div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                    {acc.sub}
+                  </div>
                 </div>
-                <div style={{ fontSize: '0.75rem', color: loadingDemo === i ? acc.color : '#cbd5e1', fontWeight: 600 }}>
+                <div style={{ fontSize: '0.8rem', color: loadingDemo === i ? acc.color : 'var(--text-muted)', fontWeight: 600, flexShrink: 0 }}>
                   {loadingDemo === i ? 'Signing in…' : '→'}
                 </div>
               </button>
@@ -86,27 +150,45 @@ export function Login({ onLogin }) {
           <div className="divider">or sign in manually</div>
 
           {/* Manual form */}
-          <form onSubmit={(e) => { e.preventDefault(); doLogin(form.username, form.password); }}>
+          <form onSubmit={(e) => { e.preventDefault(); doLogin(form.username, form.password); }} style={{ width: '100%' }}>
             <div className="input-group">
               <label className="input-label">Username</label>
-              <input className="form-input" name="username" value={form.username}
+              <input 
+                className="form-input" 
+                name="username" 
+                value={form.username}
                 onChange={e => setForm({ ...form, username: e.target.value })}
-                placeholder="Enter username" autoComplete="username" disabled={anyLoading} />
+                placeholder="Enter username" 
+                autoComplete="username" 
+                disabled={anyLoading}
+              />
             </div>
-            <div className="input-group" style={{ marginBottom: '1.25rem' }}>
+            <div className="input-group" style={{ marginBottom: '1.5rem' }}>
               <label className="input-label">Password</label>
-              <input className="form-input" name="password" type="password" value={form.password}
+              <input 
+                className="form-input" 
+                name="password" 
+                type="password" 
+                value={form.password}
                 onChange={e => setForm({ ...form, password: e.target.value })}
-                placeholder="Enter password" autoComplete="current-password" disabled={anyLoading} />
+                placeholder="Enter password" 
+                autoComplete="current-password" 
+                disabled={anyLoading} 
+              />
             </div>
-            <button type="submit" className="btn btn-primary" disabled={anyLoading || !form.username || !form.password}>
+            <button 
+              type="submit" 
+              className="btn btn-primary" 
+              disabled={anyLoading || !form.username || !form.password}
+              style={{ width: '100%', minHeight: '48px', fontSize: '1rem', fontWeight: 700 }}
+            >
               {loading ? 'Signing in…' : 'Sign In'}
             </button>
           </form>
         </div>
 
-        <p style={{ textAlign: 'center', marginTop: '1.5rem', color: '#94a3b8', fontSize: '0.75rem' }}>
-          All demo accounts use password: <strong style={{ color: '#475569' }}>password</strong>
+        <p style={{ textAlign: 'center', marginTop: '1.5rem', color: 'rgba(255,255,255,0.9)', fontSize: '0.8rem' }}>
+          Demo Password: <strong style={{ color: 'white' }}>password</strong>
         </p>
       </div>
     </div>

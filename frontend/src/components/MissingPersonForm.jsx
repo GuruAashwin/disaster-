@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { submitMissingPerson } from '../api';
 import { db } from '../db';
 import { PersonsTable } from './PersonsTable';
+import { ImageUploadZone } from './ImageUploadZone';
 
 // Flush all pending missing-person records from IndexedDB to the backend.
 // Mirrors the same pattern used in AddFoundPerson.
@@ -23,6 +24,7 @@ async function flushOfflineQueue() {
 
 export function MissingPersonForm() {
   const [form, setForm]     = useState({ name: '', age: '', gender: 'Unknown', location: '', descriptors: '' });
+  const [imageFile, setImageFile] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [isOffline, setIsOffline]   = useState(!navigator.onLine);
   const [isSyncing, setIsSyncing]   = useState(false);
@@ -63,15 +65,22 @@ export function MissingPersonForm() {
     const payload = { name: form.name, age_raw: form.age, gender: form.gender, location: form.location, descriptors: form.descriptors };
     try {
       if (isOffline) {
+        // For offline, we can't store the image in IndexedDB efficiently
+        if (imageFile) {
+          setError('Cannot upload images while offline. Please try again when online.');
+          setSubmitting(false);
+          return;
+        }
         await db.offlineQueue.add({ record_id: crypto.randomUUID(), data: { ...payload, _type: 'missing' }, status: 'pending', timestamp: Date.now() });
         await refreshPending();
         setResult('Saved offline — will sync when connected.');
       } else {
-        const res = await submitMissingPerson(payload);
+        const res = await submitMissingPerson(payload, imageFile);
         setResult(`Report submitted successfully (ID: ${res.id.slice(0, 8)}…)`);
         setRefresh(t => t + 1);
       }
       setForm({ name: '', age: '', gender: 'Unknown', location: '', descriptors: '' });
+      setImageFile(null);
     } catch (err) {
       setError(err.message || 'Submission failed.');
     } finally {
@@ -83,7 +92,7 @@ export function MissingPersonForm() {
   const syncLabel  = isSyncing ? 'Syncing…'    : isOffline ? 'Offline'      : 'Online';
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: '20px', alignItems: 'start' }}>
+    <div className="grid-2col" style={{ alignItems: 'start' }}>
 
       {/* Left — history */}
       <PersonsTable type="missing" title="Missing Person Reports" accentColor="#d97706" refreshTrigger={refresh} />
@@ -132,6 +141,8 @@ export function MissingPersonForm() {
             <label className="input-label">Physical Description</label>
             <input className="form-input" name="descriptors" value={form.descriptors} onChange={e => setForm({...form, descriptors: e.target.value})} placeholder="e.g. blue shirt, 5ft 6in, scar on left cheek" />
           </div>
+
+          <ImageUploadZone onImageSelected={setImageFile} maxSizeMB={5} />
 
           <button type="submit" className="btn btn-accent" disabled={submitting} style={{ marginTop: '0.5rem' }}>
             {submitting ? 'Submitting…' : 'Submit Report'}

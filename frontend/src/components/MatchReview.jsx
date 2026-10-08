@@ -159,7 +159,7 @@ export function MatchReview() {
   ];
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '240px 240px 1fr', gap: '16px', alignItems: 'start' }}>
+    <div className="grid-3col" style={{ alignItems: 'start' }}>
 
       {/* Col 1 — Found persons */}
       <PersonsTable type="found"   title="Found Persons"    accentColor="#059669" refreshTrigger={tableRefresh} />

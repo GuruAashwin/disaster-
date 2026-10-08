@@ -67,6 +67,7 @@ class PersonResponse(BaseModel):
     lon: Optional[float]
     shelter: Optional[str]
     status: Optional[str]
+    image_filename: Optional[str]
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -109,3 +110,105 @@ class AuditLogResponse(BaseModel):
     timestamp: datetime
 
     model_config = {"from_attributes": True}
+
+
+# ── Video Search (STEP 8 API) ─────────────────────────────────────────────────
+
+SUPPORTED_CLOTHING_COLORS = [
+    "black",
+    "white",
+    "gray",
+    "red",
+    "orange",
+    "yellow",
+    "green",
+    "blue",
+    "navy",
+    "purple",
+    "pink",
+    "brown",
+    "beige",
+    "maroon",
+]
+
+
+class ClothingSearchRequest(BaseModel):
+    """Request payload for clothing-based video search.
+    
+    Searches authorized/publicly available disaster video frames for possible
+    clothing matches. Clothing similarity is NOT identity verification.
+    Human verification is always required.
+    """
+    upper_body_color: Optional[str] = None
+    lower_body_color: Optional[str] = None
+    
+    @field_validator("upper_body_color", "lower_body_color", mode="before")
+    @classmethod
+    def normalize_colors(cls, v: Optional[str]) -> Optional[str]:
+        """Normalize color names to lowercase."""
+        if v is None:
+            return None
+        return v.lower().strip() if isinstance(v, str) else v
+    
+    @field_validator("upper_body_color", "lower_body_color")
+    @classmethod
+    def validate_color_values(cls, v: Optional[str]) -> Optional[str]:
+        """Validate color is in supported list."""
+        if v is None:
+            return None
+        if v not in SUPPORTED_CLOTHING_COLORS:
+            raise ValueError(
+                f"Unsupported color: {v}. Supported colors: {', '.join(SUPPORTED_CLOTHING_COLORS)}"
+            )
+        return v
+    
+    @property
+    def has_valid_colors(self) -> bool:
+        """Check that at least one color is specified."""
+        return self.upper_body_color is not None or self.lower_body_color is not None
+
+
+class ClothingBodyRegion(BaseModel):
+    """Detected clothing in a body region."""
+    detected_color: Optional[str] = None
+    confidence: float = 0.0
+    matched: bool = False
+
+
+class ClothingCandidate(BaseModel):
+    """Individual clothing match candidate from video frames.
+    
+    IMPORTANT: "possible_sighting" is an investigative lead based on clothing
+    similarity. It is NOT identity verification. Human verification is required.
+    """
+    candidate_id: str
+    camera_id: str
+    video_id: str
+    frame: str
+    timestamp_seconds: float
+    detection_id: int
+    upper_body: ClothingBodyRegion
+    lower_body: ClothingBodyRegion
+    match_score: int  # 0-100
+    status: str  # "possible_sighting"
+    verification_required: bool = True
+
+
+class ClothingSearchResponse(BaseModel):
+    """Response for clothing-based video search.
+    
+    Contains possible sightings that require human verification. Clothing
+    matches do not confirm identity and must be investigated by authorized
+    personnel using authorized/publicly available video footage only.
+    """
+    query: Dict[str, Optional[str]]
+    candidates: List[ClothingCandidate] = []
+    total_candidates: int = 0
+    status: str  # "processed" or "failed"
+    errors: Optional[List[str]] = None
+
+
+class VideoStatusResponse(BaseModel):
+    """Status of video search service."""
+    status: str  # "available" or "unavailable"
+    service: str = "clothing_video_search"

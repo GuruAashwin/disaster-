@@ -1,9 +1,10 @@
 """
 Persons router
-  POST /persons/found         – rescuer submits a found person
-  POST /persons/missing       – family member submits a missing person report
+  POST /persons/found         – rescuer submits a found person (with optional image)
+  POST /persons/missing       – family member submits a missing person report (with optional image)
   GET  /persons               – list persons (filterable by type, query string)
   GET  /persons/{id}          – single person detail
+  GET  /persons/{id}/image    – retrieve person image by ID
   POST /matches/run           – (re)run matching for all unmatched persons
   GET  /matches               – list matches (filterable by state, score)
 """
@@ -12,9 +13,11 @@ from __future__ import annotations
 
 import uuid
 import logging
+import shutil
+from pathlib import Path
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query, UploadFile, File, Form
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -29,13 +32,83 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["persons"])
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Helpers
+# Configuration
 # ─────────────────────────────────────────────────────────────────────────────
 
 MATCH_THRESHOLD = 0.40   # minimum score to persist a candidate match
 
+# Person images directory
+PERSON_IMAGES_DIR = Path(__file__).parent.parent / "person_images"
+PERSON_IMAGES_DIR.mkdir(exist_ok=True)
 
-def _build_raw(data: PersonCreate) -> dict:
+# Allowed image extensions
+ALLOWED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
+MAX_IMAGE_SIZE_MB = 5  # 5 MB limit
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Image Handling Helpers
+# ─────────────────────────────────────────────────────────────────────────────
+
+async def save_person_image(file: UploadFile) -> Optional[str]:
+    """
+    Save an uploaded person image. Returns the filename (UUID + extension) on success,
+    or None if validation fails.
+    
+    Validates file extension and size.
+    """
+    if not file or not file.filename:
+        return None
+    
+    # Check file extension
+    file_ext = Path(file.filename).suffix.lower()
+    if file_ext not in ALLOWED_IMAGE_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid image format. Allowed: {', '.join(ALLOWED_IMAGE_EXTENSIONS)}"
+        )
+    
+    # Read file content and check size
+    content = await file.read()
+    size_mb = len(content) / (1024 * 1024)
+    if size_mb > MAX_IMAGE_SIZE_MB:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Image too large. Maximum size: {MAX_IMAGE_SIZE_MB} MB"
+        )
+    
+    # Generate UUID-based filename
+    image_filename = f"{uuid.uuid4()}{file_ext}"
+    image_path = PERSON_IMAGES_DIR / image_filename
+    
+    # Save file
+    try:
+        with open(image_path, "wb") as f:
+            f.write(content)
+        logger.info("Saved person image: %s", image_filename)
+        return image_filename
+    except Exception as e:
+        logger.error("Failed to save person image: %s", e)
+        raise HTTPException(status_code=500, detail="Failed to save image")
+
+
+def delete_person_image(image_filename: str) -> None:
+    """Delete a person image file if it exists."""
+    if not image_filename:
+        return
+    
+    image_path = PERSON_IMAGES_DIR / image_filename
+    try:
+        if image_path.exists():
+            image_path.unlink()
+            logger.info("Deleted person image: %s", image_filename)
+    except Exception as e:
+        logger.error("Failed to delete person image %s: %s", image_filename, e)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Helpers
+# ─────────────────────────────────────────────────────────────────────────────
     """Turn the Pydantic payload into the raw_fields JSONB blob."""
     return {
         "name": data.name or "",
@@ -123,18 +196,59 @@ def _run_matching_for_person(person: Person, db: Session) -> List[Match]:
 # ─────────────────────────────────────────────────────────────────────────────
 
 @router.post("/persons/found", response_model=PersonResponse, status_code=201)
-def submit_found_person(
-    data: PersonCreate,
-    background_tasks: BackgroundTasks,
+async def submit_found_person(
+    name: Optional[str] = Form(None),
+    age_raw: Optional[str] = Form(None),
+    gender: str = Form("Unknown"),
+    location: Optional[str] = Form(None),
+    lat: Optional[str] = Form(None),
+    lon: Optional[str] = Form(None),
+    condition: Optional[str] = Form(None),
+    shelter: Optional[str] = Form(None),
+    descriptors: Optional[str] = Form(None),
+    priority_flags: str = Form("[]"),
+    image: Optional[UploadFile] = File(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    background_tasks: BackgroundTasks = Depends(),
 ):
     """
     Rescuer submits a found / rescued person.
+    Accepts multipart/form-data with optional image upload.
     Matching runs asynchronously in the background so the response is instant.
     """
+    # Convert form data to PersonCreate
+    try:
+        import json
+        priority_flags_list = json.loads(priority_flags) if priority_flags else []
+    except (json.JSONDecodeError, TypeError):
+        priority_flags_list = []
+    
+    # Parse lat/lon from strings
+    lat_val = float(lat) if lat else None
+    lon_val = float(lon) if lon else None
+    
+    data = PersonCreate(
+        name=name,
+        age_raw=age_raw,
+        gender=gender,
+        location=location,
+        lat=lat_val,
+        lon=lon_val,
+        condition=condition,
+        shelter=shelter,
+        descriptors=descriptors,
+        priority_flags=priority_flags_list,
+    )
+    
     raw = _build_raw(data)
     person = _build_person(raw, PersonType.found, current_user.id)
+    
+    # Handle image upload if provided
+    if image and image.filename:
+        image_filename = await save_person_image(image)
+        person.image_filename = image_filename
+    
     db.add(person)
     db.commit()
     db.refresh(person)
@@ -147,7 +261,7 @@ def submit_found_person(
         action="CREATE_FOUND_PERSON",
         entity="Person",
         before=None,
-        after={"id": str(person.id), "type": "found"},
+        after={"id": str(person.id), "type": "found", "has_image": person.image_filename is not None},
     )
     db.add(audit)
     db.commit()
@@ -156,17 +270,58 @@ def submit_found_person(
 
 
 @router.post("/persons/missing", response_model=PersonResponse, status_code=201)
-def submit_missing_person(
-    data: PersonCreate,
-    background_tasks: BackgroundTasks,
+async def submit_missing_person(
+    name: Optional[str] = Form(None),
+    age_raw: Optional[str] = Form(None),
+    gender: str = Form("Unknown"),
+    location: Optional[str] = Form(None),
+    lat: Optional[str] = Form(None),
+    lon: Optional[str] = Form(None),
+    condition: Optional[str] = Form(None),
+    shelter: Optional[str] = Form(None),
+    descriptors: Optional[str] = Form(None),
+    priority_flags: str = Form("[]"),
+    image: Optional[UploadFile] = File(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    background_tasks: BackgroundTasks = Depends(),
 ):
     """
     Family member / police submits a missing person report.
+    Accepts multipart/form-data with optional image upload.
     """
+    # Convert form data to PersonCreate
+    try:
+        import json
+        priority_flags_list = json.loads(priority_flags) if priority_flags else []
+    except (json.JSONDecodeError, TypeError):
+        priority_flags_list = []
+    
+    # Parse lat/lon from strings
+    lat_val = float(lat) if lat else None
+    lon_val = float(lon) if lon else None
+    
+    data = PersonCreate(
+        name=name,
+        age_raw=age_raw,
+        gender=gender,
+        location=location,
+        lat=lat_val,
+        lon=lon_val,
+        condition=condition,
+        shelter=shelter,
+        descriptors=descriptors,
+        priority_flags=priority_flags_list,
+    )
+    
     raw = _build_raw(data)
     person = _build_person(raw, PersonType.missing, current_user.id)
+    
+    # Handle image upload if provided
+    if image and image.filename:
+        image_filename = await save_person_image(image)
+        person.image_filename = image_filename
+    
     db.add(person)
     db.commit()
     db.refresh(person)
@@ -178,7 +333,7 @@ def submit_missing_person(
         action="CREATE_MISSING_PERSON",
         entity="Person",
         before=None,
-        after={"id": str(person.id), "type": "missing"},
+        after={"id": str(person.id), "type": "missing", "has_image": person.image_filename is not None},
     )
     db.add(audit)
     db.commit()
@@ -219,6 +374,44 @@ def get_person(
     if not person:
         raise HTTPException(status_code=404, detail="Person not found")
     return person
+
+
+@router.get("/persons/{person_id}/image")
+def get_person_image(
+    person_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Retrieve image for a person by ID.
+    Returns the image file with appropriate media type.
+    """
+    from fastapi.responses import FileResponse
+    
+    person = db.query(Person).filter(Person.id == person_id).first()
+    if not person:
+        raise HTTPException(status_code=404, detail="Person not found")
+    
+    if not person.image_filename:
+        raise HTTPException(status_code=404, detail="No image for this person")
+    
+    image_path = PERSON_IMAGES_DIR / person.image_filename
+    if not image_path.exists():
+        logger.warning("Image file missing for person %s: %s", person_id, person.image_filename)
+        raise HTTPException(status_code=404, detail="Image file not found")
+    
+    # Determine media type from extension
+    media_types = {
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".png": "image/png",
+        ".gif": "image/gif",
+        ".webp": "image/webp",
+    }
+    file_ext = Path(person.image_filename).suffix.lower()
+    media_type = media_types.get(file_ext, "image/jpeg")
+    
+    return FileResponse(image_path, media_type=media_type)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

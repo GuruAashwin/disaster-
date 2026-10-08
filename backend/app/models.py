@@ -50,6 +50,7 @@ class Person(Base):
     shelter = Column(String)
     status = Column(String)
     priority_flags = Column(JSON, default=list)
+    image_filename = Column(String, nullable=True)  # UUID-based filename for uploaded person image
     created_by = Column(String, ForeignKey("users.id"))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

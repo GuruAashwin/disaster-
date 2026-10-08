@@ -5,6 +5,7 @@ import { Login } from './components/Login';
 import { AddFoundPerson } from './components/AddFoundPerson';
 import { MissingPersonForm } from './components/MissingPersonForm';
 import { MatchReview } from './components/MatchReview';
+import { VideoClothingSearch } from './components/VideoClothingSearch';
 
 function RequireAuth({ children, allowedRoles }) {
   if (!isLoggedIn()) return <Navigate to="/login" replace />;
@@ -24,50 +25,90 @@ function NavBar({ onLogout }) {
 
   const linkStyle = ({ isActive }) => ({
     textDecoration: 'none',
-    fontWeight: 500,
-    fontSize: '0.9rem',
-    padding: '8px 16px',
+    fontWeight: 700,
+    fontSize: '0.95rem',
+    padding: '8px 14px',
     borderRadius: '4px',
-    color: isActive ? 'var(--navy)' : 'var(--text-secondary)',
-    background: isActive ? 'var(--bg-subtle)' : 'transparent',
-    border: isActive ? '1px solid var(--border)' : '1px solid transparent',
+    color: isActive ? '#003d99' : 'rgba(255,255,255,0.85)',
+    background: isActive ? '#ffffff' : 'transparent',
+    border: isActive ? '1px solid #b3d9ff' : '1px solid transparent',
     transition: 'all 0.2s ease',
+    whiteSpace: 'nowrap',
   });
 
   return (
     <header style={{
-      background: 'var(--bg-card)',
-      borderBottom: '1px solid var(--border)',
-      boxShadow: 'var(--shadow-sm)',
-      position: 'sticky', top: 0, zIndex: 50,
+      background: '#003d99',
+      borderBottom: '2px solid #002966',
+      boxShadow: 'var(--shadow-md)',
+      position: 'sticky',
+      top: 0,
+      zIndex: 50,
+      width: '100%',
+      overflowX: 'hidden',
     }}>
-      <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '0 1.5rem', height: '58px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
+      <div style={{ 
+        padding: '0.75rem 1rem',
+        display: 'grid',
+        gridTemplateColumns: 'auto 1fr auto',
+        alignItems: 'center',
+        gap: '1.5rem',
+        minHeight: '70px',
+        maxWidth: '100%',
+      }}>
         {/* Logo */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
-          <div style={{ width: '36px', height: '36px', background: 'linear-gradient(135deg, var(--navy), var(--primary))', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem' }}>🚨</div>
-          <div>
-            <div style={{ fontWeight: 500, fontSize: '1.05rem', color: 'var(--navy)', lineHeight: 1.2 }}>DFR System</div>
-            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Family Reunification</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+          <div style={{ 
+            width: '40px', 
+            height: '40px', 
+            background: 'linear-gradient(135deg, #0066ff, #3385ff)', 
+            borderRadius: '6px', 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center', 
+            fontSize: '1.3rem',
+            flexShrink: 0,
+          }}>
+            🚨
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <div style={{ fontWeight: 800, fontSize: '1rem', color: 'white', lineHeight: 1.2 }}>
+              DFR System
+            </div>
+            <div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.9)', letterSpacing: '0.05em', textTransform: 'uppercase', fontWeight: 600 }}>
+              Reunification
+            </div>
           </div>
         </div>
 
-        {/* Nav links */}
-        <nav style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-          {(role === 'rescuer' || isPolice) && <NavLink to="/found"   style={linkStyle}>Found Person</NavLink>}
-          {(isPublic         || isPolice) && <NavLink to="/missing" style={linkStyle}>Missing Reports</NavLink>}
-          {isPolice                        && <NavLink to="/matches" style={linkStyle}>Match Review</NavLink>}
+        {/* Nav links - centered and expanded */}
+        <nav style={{ display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'nowrap' }}>
+          {(role === 'rescuer' || isPolice) && <NavLink to="/found"   style={linkStyle}>Found</NavLink>}
+          {(isPublic         || isPolice) && <NavLink to="/missing" style={linkStyle}>Missing</NavLink>}
+          {isPolice                        && <NavLink to="/matches" style={linkStyle}>Matches</NavLink>}
+          {isPolice                        && <NavLink to="/video-search" style={linkStyle}>Video Search</NavLink>}
         </nav>
 
-        {/* User */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: '0.85rem', fontWeight: 500, color: 'var(--text)' }}>{username}</div>
-            <div style={{ marginTop: '1px' }}>
-              <span className={`badge ${ROLE_COLOR[role] || 'badge-neutral'}`}>{ROLE_LABEL[role] || role}</span>
+        {/* User - right aligned */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0, justifyContent: 'flex-end' }}>
+          <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+            <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'white', lineHeight: 1 }}>
+              {username.length > 15 ? username.substring(0, 13) + '…' : username}
             </div>
+            <span className={`badge ${ROLE_COLOR[role] || 'badge-neutral'}`} style={{ fontSize: '0.65rem', width: 'fit-content' }}>
+              {ROLE_LABEL[role] || role}
+            </span>
           </div>
-          <button className="btn btn-ghost" onClick={onLogout} style={{ flexShrink: 0 }}>
-            Sign Out
+          <button className="btn btn-ghost" onClick={onLogout} style={{ 
+            flexShrink: 0, 
+            padding: '6px 12px',
+            fontSize: '0.8rem',
+            minHeight: 'auto',
+            color: 'rgba(255,255,255,0.9)',
+            fontWeight: 700,
+            whiteSpace: 'nowrap',
+          }}>
+            Out
           </button>
         </div>
       </div>
@@ -79,7 +120,7 @@ function Shell({ onLogout, children }) {
   return (
     <>
       <NavBar onLogout={onLogout} />
-      <main style={{ maxWidth: '1400px', margin: '0 auto', padding: '2rem 1.5rem' }}>
+      <main style={{ maxWidth: '100%', width: '100%', margin: '0', padding: 'clamp(1rem, 2vw, 2rem)' }}>
         {children}
       </main>
     </>
@@ -121,6 +162,12 @@ function AppRoutes() {
       <Route path="/matches" element={
         <RequireAuth allowedRoles={['police', 'admin']}>
           <Shell onLogout={handleLogout}><MatchReview /></Shell>
+        </RequireAuth>
+      } />
+
+      <Route path="/video-search" element={
+        <RequireAuth allowedRoles={['police', 'admin']}>
+          <Shell onLogout={handleLogout}><VideoClothingSearch /></Shell>
         </RequireAuth>
       } />
 

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { listPersons } from '../api';
+import { listPersons, getPersonImageUrl } from '../api';
 
 const GENDER_ICON = { Male: '♂', Female: '♀', Unknown: '·' };
 
@@ -108,6 +108,17 @@ export function PersonsTable({ type, title, accentColor = '#4f6ef7', refreshTrig
               {/* Expanded */}
               {isOpen && (
                 <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #f1f5f9' }}>
+                  {/* Image display */}
+                  {p.image_filename && (
+                    <div style={{ marginBottom: '12px' }}>
+                      <img
+                        src={getPersonImageUrl(p.id)}
+                        alt="Person"
+                        style={{ maxWidth: '100%', height: 'auto', borderRadius: '6px', maxHeight: '150px', objectFit: 'contain' }}
+                      />
+                    </div>
+                  )}
+                  
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem' }}>
                     <tbody>
                       {expandRows(p).map(([k, v]) => (

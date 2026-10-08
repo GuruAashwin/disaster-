@@ -113,23 +113,114 @@ export async function register(username, password, role = "rescuer") {
 // ─── Persons ─────────────────────────────────────────────────────────────────
 
 /**
- * Submit a found person record from the rescuer form.
+ * Get the URL for a person's image
  */
-export async function submitFoundPerson(payload) {
-  return apiFetch("/persons/found", {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
+export function getPersonImageUrl(personId) {
+  return `${BASE}/persons/${personId}/image`;
+}
+
+/**
+ * Submit a found person record from the rescuer form.
+ * Optionally includes an image.
+ */
+export async function submitFoundPerson(payload, imageFile = null) {
+  if (imageFile) {
+    // Use FormData for image upload
+    const formData = new FormData();
+    Object.keys(payload).forEach(key => {
+      formData.append(key, payload[key]);
+    });
+    formData.append('image', imageFile);
+    
+    const token = getToken();
+    const headers = {};
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+    
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s for files
+    
+    try {
+      const res = await fetch(`${BASE}/persons/found`, {
+        method: "POST",
+        headers,
+        body: formData,
+        signal: controller.signal,
+      });
+      
+      if (!res.ok) {
+        let detail = res.statusText;
+        try {
+          const err = await res.json();
+          detail = err.detail || JSON.stringify(err);
+        } catch (_) {}
+        throw new Error(`${res.status}: ${detail}`);
+      }
+      
+      return res.json();
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  } else {
+    // Use JSON for text-only
+    return apiFetch("/persons/found", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
 }
 
 /**
  * Submit a missing person report from a family member.
+ * Optionally includes an image.
  */
-export async function submitMissingPerson(payload) {
-  return apiFetch("/persons/missing", {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
+export async function submitMissingPerson(payload, imageFile = null) {
+  if (imageFile) {
+    // Use FormData for image upload
+    const formData = new FormData();
+    Object.keys(payload).forEach(key => {
+      formData.append(key, payload[key]);
+    });
+    formData.append('image', imageFile);
+    
+    const token = getToken();
+    const headers = {};
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+    
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s for files
+    
+    try {
+      const res = await fetch(`${BASE}/persons/missing`, {
+        method: "POST",
+        headers,
+        body: formData,
+        signal: controller.signal,
+      });
+      
+      if (!res.ok) {
+        let detail = res.statusText;
+        try {
+          const err = await res.json();
+          detail = err.detail || JSON.stringify(err);
+        } catch (_) {}
+        throw new Error(`${res.status}: ${detail}`);
+      }
+      
+      return res.json();
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  } else {
+    // Use JSON for text-only
+    return apiFetch("/persons/missing", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
 }
 
 /**
@@ -182,4 +273,47 @@ export async function runMatching() {
 
 export async function getAuditLog() {
   return apiFetch("/audit");
+}
+
+// ─── Video Clothing Search ──────────────────────────────────────────────────────
+
+/**
+ * Process all videos in the video_files directory into frames
+ * 
+ * @returns {Promise<Object>} - Processing results
+ * @throws {Error} - On server error
+ */
+export async function processVideos() {
+  return apiFetch("/videos/process", {
+    method: "POST",
+  });
+}
+
+/**
+ * Search authorized disaster video footage for possible clothing matches.
+ * 
+ * IMPORTANT: This searches clothing only. Results are "possible sightings" 
+ * that require human verification. Clothing similarity is NOT identity verification.
+ * 
+ * @param {Object} payload - Search criteria
+ * @param {string|null} payload.upper_body_color - Shirt color (14 supported colors)
+ * @param {string|null} payload.lower_body_color - Pants color (14 supported colors)
+ * @param {number} payload.min_match_score - Threshold 0-100 (default 60)
+ * @param {number} payload.max_results - Limit results 1-1000 (default 10)
+ * @returns {Promise<Object>} - Results with candidates array
+ * @throws {Error} - On validation or server error
+ */
+export async function searchVideoByClothing(payload) {
+  // Ensure at least one color is provided
+  if (!payload.upper_body_color && !payload.lower_body_color) {
+    throw new Error("At least one of shirt or pants color must be selected.");
+  }
+  
+  return apiFetch("/videos/search-by-clothing", {
+    method: "POST",
+    body: JSON.stringify({
+      upper_body_color: payload.upper_body_color || null,
+      lower_body_color: payload.lower_body_color || null,
+    }),
+  });
 }
