@@ -1,0 +1,17 @@
+{
+  "name": "Disaster Family Reunification",
+  "short_name": "DFR",
+  "description": "Log and match found persons after a disaster.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#020617",
+  "theme_color": "#3b82f6",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
