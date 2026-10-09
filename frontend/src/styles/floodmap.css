@@ -1,0 +1,116 @@
+/* FloodMap Modal */
+.floodmap-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  padding: 1rem;
+}
+
+.floodmap-container {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  width: 90vw;
+  height: 90vh;
+  max-width: 1400px;
+  max-height: 800px;
+  overflow: hidden;
+}
+
+.floodmap-header {
+  padding: 1rem;
+  border-bottom: 2px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: linear-gradient(135deg, #f0f4f9 0%, #ffffff 100%);
+}
+
+.floodmap-controls {
+  padding: 1rem;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.rainfall-control {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 250px;
+}
+
+.rainfall-control input[type="range"] {
+  accent-color: #001a4d;
+}
+
+.floodmap-canvas {
+  flex: 1;
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+}
+
+.floodmap-legend {
+  position: absolute;
+  bottom: 20px;
+  left: 20px;
+  background: white;
+  padding: 12px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  max-width: 200px;
+}
+
+.floodmap-info {
+  padding: 0.75rem 1rem;
+  background: #f0f9ff;
+  border-top: 1px solid #e0f2fe;
+  border-bottom-left-radius: 12px;
+  border-bottom-right-radius: 12px;
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+  .floodmap-modal {
+    padding: 0;
+  }
+
+  .floodmap-container {
+    width: 100vw;
+    height: 100vh;
+    max-width: none;
+    max-height: none;
+    border-radius: 0;
+  }
+
+  .floodmap-header {
+    padding: 0.75rem;
+  }
+
+  .floodmap-controls {
+    padding: 0.75rem;
+    gap: 1rem;
+  }
+
+  .rainfall-control {
+    min-width: 200px;
+  }
+
+  .floodmap-legend {
+    bottom: 10px;
+    left: 10px;
+    font-size: 0.7rem;
+  }
+}

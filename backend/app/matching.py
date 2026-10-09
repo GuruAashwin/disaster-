@@ -4,6 +4,8 @@ import joblib
 import pandas as pd
 from rapidfuzz import fuzz
 import math
+from pathlib import Path
+from app.services.image_similarity import compute_photos_confidence
 
 # Try loading the model, fallback to rules if not found
 MODEL_PATH = os.path.join(os.path.dirname(__file__), "../../ml/models/matching_model.joblib")
@@ -13,6 +15,9 @@ try:
 except:
     clf = None
     ML_ENABLED = False
+
+# Path to person images directory
+PERSON_IMAGES_DIR = Path(__file__).parent / "person_images"
 
 def haversine(lat1, lon1, lat2, lon2):
     R = 6371.0
@@ -99,3 +104,36 @@ def score_pair(found_record, missing_record):
         "model_version": model_version,
         "raw_features": features
     }
+
+
+def compute_photo_match_confidence(found_person, missing_person):
+    """
+    Compute photo match confidence between two persons.
+    
+    Args:
+        found_person: Person ORM object (found type)
+        missing_person: Person ORM object (missing type)
+        
+    Returns:
+        Confidence score 0-100, or 0 if no photos available
+    """
+    try:
+        found_photos = found_person.photo_filenames or []
+        missing_photos = missing_person.photo_filenames or []
+        
+        if not found_photos or not missing_photos:
+            return 0.0
+        
+        # Compute image similarity
+        confidence = compute_photos_confidence(
+            found_photos,
+            missing_photos,
+            PERSON_IMAGES_DIR
+        )
+        
+        return confidence
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error computing photo confidence: {e}")
+        return 0.0

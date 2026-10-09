@@ -5,7 +5,22 @@
  * The JWT is stored in localStorage under "dfr_token".
  */
 
-const BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
+// Determine API base URL dynamically based on current location
+const BASE = (() => {
+  // If an environment variable is set, use it
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL;
+  }
+
+  // If running on localhost (desktop dev), use localhost:8000
+  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    return 'http://localhost:8000';
+  }
+
+  // If running on a network IP (e.g., from phone), construct API URL with same host + port 8000
+  // E.g., if phone is at 192.168.22.127:4173, API is at 192.168.22.127:8000
+  return `http://${window.location.hostname}:8000`;
+})();
 
 // ─── Token helpers ───────────────────────────────────────────────────────────
 
@@ -120,54 +135,110 @@ export function getPersonImageUrl(personId) {
 }
 
 /**
+ * Get the URL for a person's photo by filename
+ */
+export function getPersonPhotoUrl(photoFilename) {
+  if (!photoFilename) return null;
+  if (photoFilename.startsWith("http://") || photoFilename.startsWith("https://")) {
+    return photoFilename;
+  }
+  return `${BASE}/persons/photos/${photoFilename}`;
+}
+
+/**
+ * Upload multiple photos for a person (rescuer adding photos)
+ */
+export async function uploadPersonPhotos(personId, photoFiles) {
+  if (!photoFiles || photoFiles.length === 0) {
+    return null;
+  }
+
+  const formData = new FormData();
+  photoFiles.forEach(file => {
+    formData.append('photos', file);
+  });
+
+  const token = getToken();
+  const headers = {};
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+  try {
+    const res = await fetch(`${BASE}/persons/${personId}/photos`, {
+      method: "POST",
+      headers,
+      body: formData,
+      signal: controller.signal,
+    });
+
+    if (!res.ok) {
+      let detail = res.statusText;
+      try {
+        const err = await res.json();
+        detail = err.detail || JSON.stringify(err);
+      } catch (_) {}
+      throw new Error(`${res.status}: ${detail}`);
+    }
+
+    return res.json();
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+/**
  * Submit a found person record from the rescuer form.
  * Optionally includes an image.
  */
 export async function submitFoundPerson(payload, imageFile = null) {
-  if (imageFile) {
-    // Use FormData for image upload
-    const formData = new FormData();
-    Object.keys(payload).forEach(key => {
-      formData.append(key, payload[key]);
-    });
-    formData.append('image', imageFile);
-    
-    const token = getToken();
-    const headers = {};
-    if (token) {
-      headers["Authorization"] = `Bearer ${token}`;
-    }
-    
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s for files
-    
-    try {
-      const res = await fetch(`${BASE}/persons/found`, {
-        method: "POST",
-        headers,
-        body: formData,
-        signal: controller.signal,
-      });
-      
-      if (!res.ok) {
-        let detail = res.statusText;
-        try {
-          const err = await res.json();
-          detail = err.detail || JSON.stringify(err);
-        } catch (_) {}
-        throw new Error(`${res.status}: ${detail}`);
+  const formData = new FormData();
+  Object.keys(payload).forEach(key => {
+    const val = payload[key];
+    if (val !== undefined && val !== null) {
+      if (key === 'priority_flags' && Array.isArray(val)) {
+        formData.append(key, JSON.stringify(val));
+      } else {
+        formData.append(key, String(val));
       }
-      
-      return res.json();
-    } finally {
-      clearTimeout(timeoutId);
     }
-  } else {
-    // Use JSON for text-only
-    return apiFetch("/persons/found", {
+  });
+  if (imageFile) {
+    formData.append('image', imageFile);
+  }
+  
+  const token = getToken();
+  const headers = {};
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+  
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s for files
+  
+  try {
+    const res = await fetch(`${BASE}/persons/found`, {
       method: "POST",
-      body: JSON.stringify(payload),
+      headers,
+      body: formData,
+      signal: controller.signal,
     });
+    
+    if (!res.ok) {
+      let detail = res.statusText;
+      try {
+        const err = await res.json();
+        detail = err.detail || JSON.stringify(err);
+      } catch (_) {}
+      throw new Error(`${res.status}: ${detail}`);
+    }
+    
+    return res.json();
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 
@@ -176,50 +247,50 @@ export async function submitFoundPerson(payload, imageFile = null) {
  * Optionally includes an image.
  */
 export async function submitMissingPerson(payload, imageFile = null) {
-  if (imageFile) {
-    // Use FormData for image upload
-    const formData = new FormData();
-    Object.keys(payload).forEach(key => {
-      formData.append(key, payload[key]);
-    });
-    formData.append('image', imageFile);
-    
-    const token = getToken();
-    const headers = {};
-    if (token) {
-      headers["Authorization"] = `Bearer ${token}`;
-    }
-    
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s for files
-    
-    try {
-      const res = await fetch(`${BASE}/persons/missing`, {
-        method: "POST",
-        headers,
-        body: formData,
-        signal: controller.signal,
-      });
-      
-      if (!res.ok) {
-        let detail = res.statusText;
-        try {
-          const err = await res.json();
-          detail = err.detail || JSON.stringify(err);
-        } catch (_) {}
-        throw new Error(`${res.status}: ${detail}`);
+  const formData = new FormData();
+  Object.keys(payload).forEach(key => {
+    const val = payload[key];
+    if (val !== undefined && val !== null) {
+      if (key === 'priority_flags' && Array.isArray(val)) {
+        formData.append(key, JSON.stringify(val));
+      } else {
+        formData.append(key, String(val));
       }
-      
-      return res.json();
-    } finally {
-      clearTimeout(timeoutId);
     }
-  } else {
-    // Use JSON for text-only
-    return apiFetch("/persons/missing", {
+  });
+  if (imageFile) {
+    formData.append('image', imageFile);
+  }
+  
+  const token = getToken();
+  const headers = {};
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+  
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s for files
+  
+  try {
+    const res = await fetch(`${BASE}/persons/missing`, {
       method: "POST",
-      body: JSON.stringify(payload),
+      headers,
+      body: formData,
+      signal: controller.signal,
     });
+    
+    if (!res.ok) {
+      let detail = res.statusText;
+      try {
+        const err = await res.json();
+        detail = err.detail || JSON.stringify(err);
+      } catch (_) {}
+      throw new Error(`${res.status}: ${detail}`);
+    }
+    
+    return res.json();
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 
@@ -233,6 +304,15 @@ export async function listPersons({ type, q, limit = 50, offset = 0 } = {}) {
   params.set("limit", limit);
   params.set("offset", offset);
   return apiFetch(`/persons?${params}`);
+}
+
+/**
+ * Delete a person record. Admin only.
+ */
+export async function deletePerson(personId) {
+  return apiFetch(`/persons/${personId}`, {
+    method: "DELETE",
+  });
 }
 
 // ─── Matches ─────────────────────────────────────────────────────────────────

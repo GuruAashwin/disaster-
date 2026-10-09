@@ -133,6 +133,8 @@ class VideoProcessor:
         
         if sample_interval_seconds is not None:
             result.sample_interval_seconds = sample_interval_seconds
+        else:
+            result.sample_interval_seconds = self.sample_interval_seconds
         
         logger.info(f"Processing video: {video_path}")
         

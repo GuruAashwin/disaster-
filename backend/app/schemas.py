@@ -43,6 +43,8 @@ class PersonCreate(BaseModel):
     shelter: Optional[str] = None         # shelter name / camp
     descriptors: Optional[str] = None     # physical description
     priority_flags: Optional[List[str]] = []
+    contact_phone: Optional[str] = None   # Family member phone (for missing person reports)
+    contact_email: Optional[str] = None   # Family member email (for missing person reports)
 
     @field_validator("gender")
     @classmethod
@@ -68,6 +70,9 @@ class PersonResponse(BaseModel):
     shelter: Optional[str]
     status: Optional[str]
     image_filename: Optional[str]
+    photo_filenames: Optional[List[str]]
+    contact_phone: Optional[str]
+    contact_email: Optional[str]
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -80,6 +85,7 @@ class MatchResponse(BaseModel):
     found_id: UUID
     missing_id: UUID
     score: float
+    photo_confidence: Optional[float] = 0.0
     reasons: Any
     model_version: Optional[str]
     state: MatchState
@@ -89,6 +95,8 @@ class MatchResponse(BaseModel):
     missing_name: Optional[str] = None
     found_person: Optional[Dict[str, Any]] = None
     missing_person: Optional[Dict[str, Any]] = None
+    found_photos: Optional[List[str]] = None
+    missing_photos: Optional[List[str]] = None
 
     model_config = {"from_attributes": True}
 

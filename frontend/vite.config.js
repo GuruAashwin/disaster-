@@ -5,8 +5,8 @@ import { defineConfig } from 'vite'
 export default defineConfig({
   plugins: [react()],
   server: {
-    port: 5173,
-    host: 'localhost', // Use localhost instead of 0.0.0.0
-    open: false,       // Don't auto-open browser
+    port: 4173,
+    host: '0.0.0.0',        // Bind to all network interfaces (not just localhost)
+    open: false,            // Don't auto-open browser
   },
 })

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { listMatches, verifyMatch, rejectMatch, runMatching } from '../api';
 import { PersonsTable } from './PersonsTable';
+import { PhotoComparison } from './PhotoComparison';
 
 const STATE_CFG = {
   under_review: { label: 'Under Review', cls: 'badge-warning' },
@@ -17,7 +18,6 @@ function ScorePill({ score }) {
 function MatchCard({ match, onVerify, onReject, busy }) {
   const [expanded, setExpanded] = useState(false);
   const reasons  = match.reasons?.reasons  || [];
-  const features = match.reasons?.features || {};
   const cfg      = STATE_CFG[match.state] || { label: match.state, cls: 'badge-neutral' };
 
   return (
@@ -26,6 +26,11 @@ function MatchCard({ match, onVerify, onReject, busy }) {
       <div style={{ padding: '14px 16px', background: '#fafbfc', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
           <ScorePill score={match.score} />
+          {match.photo_confidence > 0 && (
+            <span className="badge badge-primary" style={{ fontSize: '0.7rem' }}>
+              📸 {Math.round(match.photo_confidence)}% photo match
+            </span>
+          )}
           <span className={`badge ${cfg.cls}`}>{cfg.label}</span>
           <span style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 500 }}>{match.model_version}</span>
         </div>
@@ -54,11 +59,22 @@ function MatchCard({ match, onVerify, onReject, busy }) {
         </div>
       )}
 
+      {/* Photo Comparison */}
+      {(match.found_photos?.length > 0 || match.missing_photos?.length > 0) && expanded && (
+        <div style={{ margin: '12px 16px 0', padding: '16px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
+          <PhotoComparison
+            foundPhotos={match.found_photos || []}
+            missingPhotos={match.missing_photos || []}
+            photoConfidence={match.photo_confidence || 0}
+          />
+        </div>
+      )}
+
       {/* Individual Information */}
       {expanded && (
-        <div style={{ margin: '0 16px 12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '16px', display: 'flex', gap: '20px' }}>
+        <div style={{ margin: '12px 16px 0', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '16px', display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
           
-          <div style={{ flex: 1 }}>
+          <div style={{ flex: 1, minWidth: '250px' }}>
             <h4 style={{ margin: '0 0 12px 0', fontSize: '0.8rem', color: '#059669', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Found Person Details</h4>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
               <tbody>
@@ -74,7 +90,7 @@ function MatchCard({ match, onVerify, onReject, busy }) {
 
           <div style={{ width: '1px', background: '#e2e8f0' }}></div>
 
-          <div style={{ flex: 1 }}>
+          <div style={{ flex: 1, minWidth: '250px' }}>
             <h4 style={{ margin: '0 0 12px 0', fontSize: '0.8rem', color: '#d97706', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Missing Person Details</h4>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
               <tbody>

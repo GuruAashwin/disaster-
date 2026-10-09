@@ -15,7 +15,11 @@ export function Login({ onLogin }) {
 
   const doLogin = async (username, password, demoIdx = null) => {
     setError('');
-    demoIdx !== null ? setLoadingDemo(demoIdx) : setLoading(true);
+    if (demoIdx !== null) {
+      setLoadingDemo(demoIdx);
+    } else {
+      setLoading(true);
+    }
     try {
       const data = await login(username, password);
       onLogin(data);

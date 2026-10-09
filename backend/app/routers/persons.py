@@ -92,6 +92,19 @@ async def save_person_image(file: UploadFile) -> Optional[str]:
         raise HTTPException(status_code=500, detail="Failed to save image")
 
 
+async def save_person_images(files: List[UploadFile]) -> List[str]:
+    """
+    Save multiple person images. Returns list of filenames.
+    """
+    filenames = []
+    for file in files:
+        if file and file.filename:
+            filename = await save_person_image(file)
+            if filename:
+                filenames.append(filename)
+    return filenames
+
+
 def delete_person_image(image_filename: str) -> None:
     """Delete a person image file if it exists."""
     if not image_filename:
@@ -109,6 +122,8 @@ def delete_person_image(image_filename: str) -> None:
 # ─────────────────────────────────────────────────────────────────────────────
 # Helpers
 # ─────────────────────────────────────────────────────────────────────────────
+
+def _build_raw(data: PersonCreate) -> dict:
     """Turn the Pydantic payload into the raw_fields JSONB blob."""
     return {
         "name": data.name or "",
@@ -121,6 +136,8 @@ def delete_person_image(image_filename: str) -> None:
         "shelter": data.shelter or "",
         "descriptors": data.descriptors or "",
         "priority_flags": data.priority_flags or [],
+        "contact_phone": data.contact_phone or "",
+        "contact_email": data.contact_email or "",
     }
 
 
@@ -141,6 +158,8 @@ def _build_person(raw: dict, person_type: PersonType, creator_id: uuid.UUID) -> 
         shelter=raw.get("shelter"),
         status="active",
         priority_flags=raw.get("priority_flags", []),
+        contact_phone=raw.get("contact_phone"),
+        contact_email=raw.get("contact_email"),
         created_by=creator_id,
     )
     return person
@@ -152,6 +171,8 @@ def _run_matching_for_person(person: Person, db: Session) -> List[Match]:
     opposite type and persist matches above the threshold.
     Returns the list of new Match objects created.
     """
+    from app.matching import compute_photo_match_confidence
+    
     opposite_type = PersonType.missing if person.type == PersonType.found else PersonType.found
     candidates = db.query(Person).filter(Person.type == opposite_type).all()
 
@@ -160,9 +181,11 @@ def _run_matching_for_person(person: Person, db: Session) -> List[Match]:
         if person.type == PersonType.found:
             found_rec, missing_rec = person.cleaned_fields, candidate.cleaned_fields
             found_id, missing_id = person.id, candidate.id
+            found_person, missing_person = person, candidate
         else:
             found_rec, missing_rec = candidate.cleaned_fields, person.cleaned_fields
             found_id, missing_id = candidate.id, person.id
+            found_person, missing_person = candidate, person
 
         # Skip if a match already exists for this pair
         existing = (
@@ -175,10 +198,14 @@ def _run_matching_for_person(person: Person, db: Session) -> List[Match]:
 
         result = score_pair(found_rec, missing_rec)
         if result["score"] >= MATCH_THRESHOLD:
+            # Compute photo confidence if both have photos
+            photo_confidence = compute_photo_match_confidence(found_person, missing_person)
+            
             match = Match(
                 found_id=found_id,
                 missing_id=missing_id,
                 score=result["score"],
+                photo_confidence=photo_confidence,
                 reasons={"reasons": result["reasons"], "features": result["raw_features"]},
                 model_version=result["model_version"],
                 state=MatchState.under_review,
@@ -197,6 +224,7 @@ def _run_matching_for_person(person: Person, db: Session) -> List[Match]:
 
 @router.post("/persons/found", response_model=PersonResponse, status_code=201)
 async def submit_found_person(
+    background_tasks: BackgroundTasks,
     name: Optional[str] = Form(None),
     age_raw: Optional[str] = Form(None),
     gender: str = Form("Unknown"),
@@ -207,10 +235,11 @@ async def submit_found_person(
     shelter: Optional[str] = Form(None),
     descriptors: Optional[str] = Form(None),
     priority_flags: str = Form("[]"),
+    contact_phone: Optional[str] = Form(None),
+    contact_email: Optional[str] = Form(None),
     image: Optional[UploadFile] = File(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    background_tasks: BackgroundTasks = Depends(),
 ):
     """
     Rescuer submits a found / rescued person.
@@ -239,6 +268,8 @@ async def submit_found_person(
         shelter=shelter,
         descriptors=descriptors,
         priority_flags=priority_flags_list,
+        contact_phone=contact_phone,
+        contact_email=contact_email,
     )
     
     raw = _build_raw(data)
@@ -271,6 +302,7 @@ async def submit_found_person(
 
 @router.post("/persons/missing", response_model=PersonResponse, status_code=201)
 async def submit_missing_person(
+    background_tasks: BackgroundTasks,
     name: Optional[str] = Form(None),
     age_raw: Optional[str] = Form(None),
     gender: str = Form("Unknown"),
@@ -281,14 +313,16 @@ async def submit_missing_person(
     shelter: Optional[str] = Form(None),
     descriptors: Optional[str] = Form(None),
     priority_flags: str = Form("[]"),
+    contact_phone: Optional[str] = Form(None),
+    contact_email: Optional[str] = Form(None),
     image: Optional[UploadFile] = File(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    background_tasks: BackgroundTasks = Depends(),
 ):
     """
     Family member / police submits a missing person report.
     Accepts multipart/form-data with optional image upload.
+    Includes contact details for family member notification.
     """
     # Convert form data to PersonCreate
     try:
@@ -312,6 +346,8 @@ async def submit_missing_person(
         shelter=shelter,
         descriptors=descriptors,
         priority_flags=priority_flags_list,
+        contact_phone=contact_phone,
+        contact_email=contact_email,
     )
     
     raw = _build_raw(data)
@@ -370,10 +406,101 @@ def get_person(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    person = db.query(Person).filter(Person.id == person_id).first()
+    person = db.query(Person).filter(Person.id == str(person_id)).first()
     if not person:
         raise HTTPException(status_code=404, detail="Person not found")
     return person
+
+
+@router.delete("/persons/{person_id}", status_code=200)
+def delete_person(
+    person_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Delete a person record. Admin only.
+    Also deletes associated images and matches.
+    """
+    if current_user.role.value != "admin":
+        raise HTTPException(status_code=403, detail="Admin role required")
+    
+    person_id_str = str(person_id)
+    person = db.query(Person).filter(Person.id == person_id_str).first()
+    if not person:
+        raise HTTPException(status_code=404, detail="Person not found")
+    
+    # Delete associated images
+    if person.image_filename:
+        delete_person_image(person.image_filename)
+    
+    if person.photo_filenames:
+        for photo_filename in person.photo_filenames:
+            delete_person_image(photo_filename)
+    
+    # Delete associated matches
+    db.query(Match).filter(
+        (Match.found_id == person_id_str) | (Match.missing_id == person_id_str)
+    ).delete()
+    
+    # Create audit log
+    audit = AuditLog(
+        actor=str(current_user.id),
+        action="DELETE_PERSON",
+        entity="Person",
+        before={"id": str(person.id), "type": str(person.type), "name": person.raw_fields.get("name")},
+        after=None,
+    )
+    db.add(audit)
+    
+    # Delete the person
+    db.delete(person)
+    db.commit()
+    
+    logger.info("Admin %s deleted person %s", current_user.id, person_id)
+    
+    return {"status": "ok", "message": f"Person {person_id} deleted successfully"}
+
+
+@router.post("/persons/{person_id}/photos")
+async def upload_photos(
+    person_id: uuid.UUID,
+    photos: List[UploadFile] = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Upload multiple photos for a person.
+    """
+    person_id_str = str(person_id)
+    person = db.query(Person).filter(Person.id == person_id_str).first()
+    if not person:
+        raise HTTPException(status_code=404, detail="Person not found")
+    
+    # Save images
+    new_filenames = await save_person_images(photos)
+    
+    # Add to existing photos
+    current_photos = person.photo_filenames or []
+    if isinstance(current_photos, str):
+        current_photos = []
+    
+    updated_photos = list(current_photos) + new_filenames
+    person.photo_filenames = updated_photos
+    
+    db.add(person)
+    db.commit()
+    db.refresh(person)
+    
+    logger.info("Added %d photos to person %s", len(new_filenames), person_id)
+    
+    return {
+        "status": "ok",
+        "person_id": str(person.id),
+        "photos_added": len(new_filenames),
+        "total_photos": len(updated_photos),
+        "photo_filenames": updated_photos,
+    }
 
 
 @router.get("/persons/{person_id}/image")
@@ -388,7 +515,7 @@ def get_person_image(
     """
     from fastapi.responses import FileResponse
     
-    person = db.query(Person).filter(Person.id == person_id).first()
+    person = db.query(Person).filter(Person.id == str(person_id)).first()
     if not person:
         raise HTTPException(status_code=404, detail="Person not found")
     
@@ -409,6 +536,41 @@ def get_person_image(
         ".webp": "image/webp",
     }
     file_ext = Path(person.image_filename).suffix.lower()
+    media_type = media_types.get(file_ext, "image/jpeg")
+    
+    return FileResponse(image_path, media_type=media_type)
+
+
+@router.get("/persons/photos/{photo_filename}")
+def get_person_photo(
+    photo_filename: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Retrieve a photo by filename.
+    Returns the image file with appropriate media type.
+    """
+    from fastapi.responses import FileResponse
+    
+    # Prevent directory traversal
+    if ".." in photo_filename or "/" in photo_filename or "\\" in photo_filename:
+        raise HTTPException(status_code=403, detail="Invalid filename")
+    
+    image_path = PERSON_IMAGES_DIR / photo_filename
+    if not image_path.exists():
+        logger.warning("Photo file not found: %s", photo_filename)
+        raise HTTPException(status_code=404, detail="Photo not found")
+    
+    # Determine media type from extension
+    media_types = {
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".png": "image/png",
+        ".gif": "image/gif",
+        ".webp": "image/webp",
+    }
+    file_ext = Path(photo_filename).suffix.lower()
     media_type = media_types.get(file_ext, "image/jpeg")
     
     return FileResponse(image_path, media_type=media_type)
@@ -463,25 +625,30 @@ def list_matches(
     query = query.filter(Match.score >= min_score)
     matches = query.order_by(Match.score.desc()).offset(offset).limit(limit).all()
 
-    # Enrich with names from the Person table
+    # Enrich with names and photos from the Person table
     results: List[MatchResponse] = []
     for m in matches:
         found_person = db.query(Person).filter(Person.id == m.found_id).first()
         missing_person = db.query(Person).filter(Person.id == m.missing_id).first()
         item = MatchResponse.model_validate(m)
+        
         if found_person:
             item.found_name = (found_person.raw_fields or {}).get("name", "Unknown")
             item.found_person = found_person.raw_fields
+            item.found_photos = found_person.photo_filenames or []
         else:
             item.found_name = "Unknown"
             item.found_person = {}
+            item.found_photos = []
             
         if missing_person:
             item.missing_name = (missing_person.raw_fields or {}).get("name", "Unknown")
             item.missing_person = missing_person.raw_fields
+            item.missing_photos = missing_person.photo_filenames or []
         else:
             item.missing_name = "Unknown"
             item.missing_person = {}
+            item.missing_photos = []
             
         results.append(item)
 

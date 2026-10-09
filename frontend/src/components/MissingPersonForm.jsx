@@ -5,25 +5,27 @@ import { PersonsTable } from './PersonsTable';
 import { ImageUploadZone } from './ImageUploadZone';
 
 // Flush all pending missing-person records from IndexedDB to the backend.
-// Mirrors the same pattern used in AddFoundPerson.
 async function flushOfflineQueue() {
-  const pending = await db.offlineQueue.where('status').equals('pending').toArray();
-  for (const item of pending) {
-    // Only flush records that belong to this form
-    if (item.data?._type !== 'missing') continue;
-    try {
-      const payload = { ...item.data };
-      delete payload._type;
-      await submitMissingPerson(payload);
-      await db.offlineQueue.update(item.id, { status: 'synced' });
-    } catch (err) {
-      console.warn('Sync failed', item.record_id, err.message);
+  try {
+    const pending = await db.offlineQueue.where('status').equals('pending').toArray();
+    for (const item of pending) {
+      if (item.data?._type !== 'missing') continue;
+      try {
+        const payload = { ...item.data };
+        delete payload._type;
+        await submitMissingPerson(payload);
+        await db.offlineQueue.update(item.id, { status: 'synced' });
+      } catch (err) {
+        console.warn('Sync failed', item.record_id, err.message);
+      }
     }
+  } catch (err) {
+    console.warn('Offline queue read failed:', err.message);
   }
 }
 
 export function MissingPersonForm() {
-  const [form, setForm]     = useState({ name: '', age: '', gender: 'Unknown', location: '', descriptors: '' });
+  const [form, setForm]     = useState({ name: '', age: '', gender: 'Unknown', location: '', descriptors: '', contact_phone: '', contact_email: '' });
   const [imageFile, setImageFile] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [isOffline, setIsOffline]   = useState(!navigator.onLine);
@@ -34,35 +36,44 @@ export function MissingPersonForm() {
   const [refresh, setRefresh]       = useState(0);
 
   const refreshPending = useCallback(async () => {
-    // Count only this form's pending records
-    const all = await db.offlineQueue.where('status').equals('pending').toArray();
-    setPendingCount(all.filter(r => r.data?._type === 'missing').length);
+    try {
+      const all = await db.offlineQueue.where('status').equals('pending').toArray();
+      const count = all.filter(r => r.data?._type === 'missing').length;
+      setPendingCount(count);
+    } catch (err) {
+      console.warn('refreshPending failed:', err.message);
+    }
   }, []);
-
-  const handleOnline = useCallback(async () => {
-    setIsOffline(false);
-    setIsSyncing(true);
-    await flushOfflineQueue();
-    await refreshPending();
-    setIsSyncing(false);
-    setRefresh(t => t + 1);
-  }, [refreshPending]);
 
   useEffect(() => {
     refreshPending();
-    const off = () => setIsOffline(true);
+    
+    const handleOnline = async () => {
+      setIsOffline(false);
+      setIsSyncing(true);
+      await flushOfflineQueue();
+      await refreshPending();
+      setIsSyncing(false);
+      setRefresh(t => t + 1);
+    };
+    
+    const handleOffline = () => setIsOffline(true);
+    
     window.addEventListener('online',  handleOnline);
-    window.addEventListener('offline', off);
+    window.addEventListener('offline', handleOffline);
+    
     return () => {
       window.removeEventListener('online',  handleOnline);
-      window.removeEventListener('offline', off);
+      window.removeEventListener('offline', handleOffline);
     };
-  }, [handleOnline, refreshPending]);
+  }, [refreshPending]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setSubmitting(true); setError(''); setResult(null);
-    const payload = { name: form.name, age_raw: form.age, gender: form.gender, location: form.location, descriptors: form.descriptors };
+    setSubmitting(true); 
+    setError(''); 
+    setResult(null);
+    const payload = { name: form.name, age_raw: form.age, gender: form.gender, location: form.location, descriptors: form.descriptors, contact_phone: form.contact_phone, contact_email: form.contact_email };
     try {
       if (isOffline) {
         // For offline, we can't store the image in IndexedDB efficiently
@@ -79,7 +90,7 @@ export function MissingPersonForm() {
         setResult(`Report submitted successfully (ID: ${res.id.slice(0, 8)}…)`);
         setRefresh(t => t + 1);
       }
-      setForm({ name: '', age: '', gender: 'Unknown', location: '', descriptors: '' });
+      setForm({ name: '', age: '', gender: 'Unknown', location: '', descriptors: '', contact_phone: '', contact_email: '' });
       setImageFile(null);
     } catch (err) {
       setError(err.message || 'Submission failed.');
@@ -140,6 +151,34 @@ export function MissingPersonForm() {
           <div className="input-group">
             <label className="input-label">Physical Description</label>
             <input className="form-input" name="descriptors" value={form.descriptors} onChange={e => setForm({...form, descriptors: e.target.value})} placeholder="e.g. blue shirt, 5ft 6in, scar on left cheek" />
+          </div>
+
+          {/* Contact Details Section */}
+          <div style={{
+            marginTop: '1.5rem',
+            padding: '1rem',
+            background: '#fef3c7',
+            border: '1px solid #fcd34d',
+            borderRadius: 'var(--radius)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '1rem' }}>
+              <span style={{ fontSize: '1.2rem' }}>📞</span>
+              <div>
+                <div style={{ fontWeight: 700, color: '#92400e' }}>Family Contact Details</div>
+                <div style={{ fontSize: '0.8rem', color: '#78350f' }}>We'll notify you when your family member is found</div>
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <div className="input-group">
+                <label className="input-label">Phone Number</label>
+                <input className="form-input" type="tel" name="contact_phone" value={form.contact_phone} onChange={e => setForm({...form, contact_phone: e.target.value})} placeholder="e.g. +91 98765 43210" />
+              </div>
+              <div className="input-group">
+                <label className="input-label">Email Address</label>
+                <input className="form-input" type="email" name="contact_email" value={form.contact_email} onChange={e => setForm({...form, contact_email: e.target.value})} placeholder="e.g. family@example.com" />
+              </div>
+            </div>
           </div>
 
           <ImageUploadZone onImageSelected={setImageFile} maxSizeMB={5} />

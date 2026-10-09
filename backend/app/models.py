@@ -50,7 +50,11 @@ class Person(Base):
     shelter = Column(String)
     status = Column(String)
     priority_flags = Column(JSON, default=list)
-    image_filename = Column(String, nullable=True)  # UUID-based filename for uploaded person image
+    image_filename = Column(String, nullable=True)  # Deprecated: use photo_filenames instead
+    photo_filenames = Column(JSON, default=list)  # List of photo filenames for this person
+    # Contact details for family member (for missing person reports)
+    contact_phone = Column(String, nullable=True)  # Phone number of family member
+    contact_email = Column(String, nullable=True)  # Email of family member
     created_by = Column(String, ForeignKey("users.id"))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
@@ -65,6 +69,7 @@ class Match(Base):
     score = Column(Float, nullable=False)
     reasons = Column(JSON, default=dict)
     model_version = Column(String)
+    photo_confidence = Column(Float, default=0.0)  # 0-100 confidence based on photo comparison
     state = Column(SQLEnum(MatchState), default=MatchState.under_review)
     verified_by = Column(String, ForeignKey("users.id"))
     verified_at = Column(DateTime(timezone=True))

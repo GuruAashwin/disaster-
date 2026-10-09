@@ -8,7 +8,9 @@ BASE_URL = "http://localhost:8000"
 def create_users():
     users = [
         {"username": "rescuer1", "password": "password", "role": "rescuer"},
-        {"username": "police_admin", "password": "password", "role": "police"}
+        {"username": "police_admin", "password": "password", "role": "police"},
+        {"username": "family_user", "password": "password", "role": "public"},
+        {"username": "admin", "password": "password", "role": "admin"}
     ]
     for u in users:
         res = requests.post(f"{BASE_URL}/auth/register", json=u)

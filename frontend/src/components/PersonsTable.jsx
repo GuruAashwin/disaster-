@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { listPersons, getPersonImageUrl } from '../api';
+import { listPersons, getPersonImageUrl, deletePerson, getRole } from '../api';
+import { PhotoGallery } from './PhotoGallery';
 
 const GENDER_ICON = { Male: '♂', Female: '♀', Unknown: '·' };
 
@@ -14,17 +15,19 @@ function timeAgo(isoStr) {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
-export function PersonsTable({ type, title, accentColor = '#4f6ef7', refreshTrigger = 0 }) {
+export function PersonsTable({ type, title, accentColor = '#4f6ef7', refreshTrigger = 0, showPhotoUpload = false }) {
   const [persons, setPersons]   = useState([]);
   const [loading, setLoading]   = useState(false);
   const [selected, setSelected] = useState(null);
+  const [deleting, setDeleting] = useState(null);
+  const userRole = getRole();
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const data = await listPersons({ type, limit: 100 });
       setPersons(data);
-    } catch (_) { /* secondary UI */ }
+    } catch { /* secondary UI */ }
     finally { setLoading(false); }
   }, [type]);
 
@@ -47,6 +50,29 @@ export function PersonsTable({ type, title, accentColor = '#4f6ef7', refreshTrig
     }
     rows.push(['ID', (p.id?.slice(0, 13) ?? '') + '…']);
     return rows;
+  };
+
+  const handlePhotosAdded = () => {
+    // Refresh person data to show new photos
+    load();
+  };
+
+  const handleDeletePerson = async (personId) => {
+    if (!window.confirm('Are you sure you want to delete this record? This action cannot be undone.')) {
+      return;
+    }
+    
+    setDeleting(personId);
+    try {
+      await deletePerson(personId);
+      // Remove from list
+      setPersons(persons.filter(p => p.id !== personId));
+      setSelected(null);
+    } catch (err) {
+      alert(`Delete failed: ${err.message}`);
+    } finally {
+      setDeleting(null);
+    }
   };
 
   return (
@@ -118,6 +144,17 @@ export function PersonsTable({ type, title, accentColor = '#4f6ef7', refreshTrig
                       />
                     </div>
                   )}
+
+                  {/* Photo Gallery (rescuer only) */}
+                  {showPhotoUpload && (
+                    <div style={{ marginBottom: '12px', padding: '10px', background: '#f8fafc', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                      <PhotoGallery
+                        personId={p.id}
+                        photos={p.photo_filenames || []}
+                        onPhotosAdded={handlePhotosAdded}
+                      />
+                    </div>
+                  )}
                   
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem' }}>
                     <tbody>
@@ -129,6 +166,32 @@ export function PersonsTable({ type, title, accentColor = '#4f6ef7', refreshTrig
                       ))}
                     </tbody>
                   </table>
+
+                  {/* Admin delete button */}
+                  {userRole === 'admin' && (
+                    <div style={{ marginTop: '12px', paddingTop: '10px', borderTop: '1px solid #f1f5f9', display: 'flex', gap: '8px' }}>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeletePerson(p.id);
+                        }}
+                        disabled={deleting === p.id}
+                        style={{
+                          padding: '6px 12px',
+                          fontSize: '0.75rem',
+                          fontWeight: 600,
+                          background: deleting === p.id ? '#dc2626' : '#ef4444',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '4px',
+                          cursor: deleting === p.id ? 'not-allowed' : 'pointer',
+                          opacity: deleting === p.id ? 0.6 : 1,
+                        }}
+                      >
+                        {deleting === p.id ? '⏳ Deleting…' : '🗑 Delete'}
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
